@@ -23,6 +23,20 @@ ARG HF_HOME=${CACHE_HOME}/huggingface
 ########################################
 FROM registry.access.redhat.com/ubi9/ubi-minimal AS base
 
+
+## Todo: Use UBI 9 from local repo
+# FROM redhat/ubi9-minimal AS base
+
+# RUN \
+#     # Apply latest updates; make sure to use internal RHEL 9 satellite repos only \
+#     rm /etc/yum.repos.d/ubi.repo && \
+#     microdnf repolist && \
+#     microdnf update -y --nodocs --noplugins --disablerepo=* --enablerepo=rhel-9* --setopt install_weak_deps=0 && \
+#     # Reinstall tzdata in order to switch timezone from the default UTC to the value provided with environment variable TZ
+#     microdnf reinstall tzdata -y && \
+#     # Cleanup caches
+#     microdnf clean all
+
 # RUN mount cache for multi-arch: https://github.com/docker/buildx/issues/549#issuecomment-1788297892
 ARG TARGETARCH
 ARG TARGETVARIANT
@@ -117,12 +131,15 @@ RUN install -d -m 775 -o $UID -g 0 /licenses && \
     install -d -m 775 -o $UID -g 0 ${CACHE_HOME} && \
     install -d -m 775 -o $UID -g 0 ${CONFIG_HOME}
 
+## TODO Think about building ffmpeg from source if needed
 # ffmpeg
-COPY --from=ghcr.io/jim60105/static-ffmpeg-upx:7.1 /ffmpeg /usr/local/bin/
-# COPY --from=ghcr.io/jim60105/static-ffmpeg-upx:7.1 /ffprobe /usr/local/bin/
+# https://github.com/wader/static-ffmpeg
+COPY --from=mwader/static-ffmpeg:7.1 /ffmpeg /usr/local/bin/
 
-# dumb-init
-COPY --from=ghcr.io/jim60105/static-ffmpeg-upx:7.1 /dumb-init /usr/local/bin/
+## TODO Think about building dumb-init from source if needed
+# https://github.com/Yelp/dumb-init
+# https://github.com/building5/docker-dumb-init
+COPY --from=building5/dumb-init:1.2.1 /dumb-init /usr/local/bin/
 
 # Copy licenses (OpenShift Policy)
 COPY --chown=$UID:0 --chmod=775 LICENSE /licenses/LICENSE
