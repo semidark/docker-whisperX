@@ -172,7 +172,7 @@ ARG XDG_CONFIG_HOME=${CONFIG_HOME}
 ARG HOME="/root"
 
 # Preload vad model
-RUN python3 -c 'from whisperx.vad import load_vad_model; load_vad_model("cpu");'
+RUN python3 -c 'from whisperx.vads.pyannote import load_vad_model; load_vad_model("cpu");'
 
 ARG WHISPER_MODEL
 ENV WHISPER_MODEL=${WHISPER_MODEL}
