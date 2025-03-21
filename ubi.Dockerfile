@@ -9,14 +9,16 @@ ARG RELEASE=0
 # Leave them as is when building locally
 ARG LOAD_WHISPER_STAGE=load_whisper
 ARG NO_MODEL_STAGE=no_model
+ARG LOAD_DIARIZATION_STAGE=load_diarization
 
-# When downloading diarization model with auth token, it seems that it is not respecting the TORCH_HOME env variable.
-# So it is necessary to ensure that the CACHE_HOME is set to the exact same path as the default path.
-# https://github.com/jim60105/docker-whisperX/issues/27
 ARG CACHE_HOME=/.cache
 ARG CONFIG_HOME=/.config
 ARG TORCH_HOME=${CACHE_HOME}/torch
 ARG HF_HOME=${CACHE_HOME}/huggingface
+# When downloading diarization model with auth token, it pyannote is not respecting the TORCH_HOME env variable.
+# Instead it uses the PYANNOTE_CACHE environment variable, or "~/.cache/torch/pyannote" when it is unset.
+# see https://github.com/pyannote/pyannote-audio/blob/240a7f3ef60bc613169df860b536b10e338dbf3c/pyannote/audio/core/pipeline.py#L71
+ARG PYANNOTE_CACHE=${TORCH_HOME}/pyannote
 
 ########################################
 # Base stage
@@ -188,6 +190,7 @@ ARG CONFIG_HOME
 ARG XDG_CONFIG_HOME=${CONFIG_HOME}
 ARG HOME="/root"
 
+## TODO Think about using silero vad model
 # Preload vad model
 RUN python3 -c 'from whisperx.vads.pyannote import load_vad_model; load_vad_model("cpu");'
 
@@ -210,6 +213,24 @@ ENV LANG=${LANG}
 RUN --mount=source=load_align_model.py,target=load_align_model.py \
     for i in ${LANG}; do echo "Preload align model: $i"; python3 load_align_model.py "$i"; done
 
+
+########################################
+# load_diarization stage
+########################################
+FROM load_align AS load_diarization
+
+ARG HOME="/root"
+ARG PYANNOTE_CACHE
+ENV PYANNOTE_CACHE=${PYANNOTE_CACHE}
+
+ARG HF_TOKEN
+ENV HF_TOKEN=${HF_TOKEN}
+
+# Preload align models
+RUN --mount=source=load_diarization_model.py,target=load_diarization_model.py \
+    echo "Preload pyannote/speaker-diarization-3.1 model with HF_TOKEN: ${HF_TOKEN:0:5}..."; python3 load_diarization_model.py "${HF_TOKEN}"
+
+
 ########################################
 # Final stage with model
 ########################################
@@ -218,7 +239,7 @@ FROM ${NO_MODEL_STAGE} AS final
 ARG UID
 
 ARG CACHE_HOME
-COPY --chown=$UID:0 --chmod=775 --from=load_align ${CACHE_HOME} ${CACHE_HOME}
+COPY --chown=$UID:0 --chmod=775 --from=load_diarization ${CACHE_HOME} ${CACHE_HOME}
 
 ARG LANG
 ENV LANG=${LANG}
